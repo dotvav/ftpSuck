@@ -50,15 +50,17 @@ Patterns define what filenames trigger an action, and what are the actions:
 | `file_pattern`   | a regular exception | When a file is detected and its name matches this regexp, the actions are executed in order |
 | `actions`        | a list of actions   | You **must** set this. See the model below.                                                 |
 
-There are 2 types of actions:
+There are 3 types of actions:
 
 | Action property     | Usage                              | Note                                                                                                                                     |
 |---------------------|------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`            | `download` or `mqtt`               | `download` is used to download the file from the FTP server into the local filesystem, `mqtt` is used to send a message on an MQTT topic |
+| `action`            | `download`, `mqtt` or `wait`       | `download` is used to download the file from the FTP server into the local filesystem, `mqtt` is used to send a message on an MQTT topic |
 | `download_path`     | where to download the file         | Used on `download` actions. `target` by default. **Variables can be used**.                                                              |
 | `download_filename` | the name of the downloaded file    | Used on `download` actions. `{filename}` by default. **Variables can be used**.                                                          |
 | `topic`             | which MQTT topic to send a message | Used on `mqtt` actions. **Variables can be used**.                                                                                       |
 | `payload`           | what payload to put in a message   | Used on `mqtt` actions. `{filename}` by default. **Variables can be used**.                                                              |
+| `duration`          | how many seconds to wait           | Used on `wait` actions. `1` by default                                                                                                   |
+
 
 Where indicated, variables can be used in configuration properties. Use the `{variable_name}` syntax. The following variables are available:
 

@@ -98,7 +98,7 @@ class MqttAction(Action):
         self.payload = raw.get("payload", self.payload)
 
     def connect(self):
-        context.mqtt_client = mqtt.Client(config.mqtt_client_name)
+        context.mqtt_client = mqtt.Client(context.config.mqtt_client_name)
         if context.config.mqtt_username is not None:
             context.mqtt_client.username_pw_set(context.config.mqtt_username, context.config.mqtt_password)
         context.mqtt_client.connect(context.config.mqtt_host, context.config.mqtt_port)
@@ -109,6 +109,16 @@ class MqttAction(Action):
         if not context.mqtt_client:
             self.connect()
         context.mqtt_client.publish(self.topic.format(filename=filename), self.payload.format(filename=filename), retain=False)
+
+
+class WaitAction(Action):
+    def __init__(self, pattern, raw):
+        super().__init__(pattern, raw)
+        self.duration = raw.get("duration", 1)
+
+    def process(self, filename):
+        logging.info("Wait action for device '%s' file '%s'", self.pattern.device.name, filename)
+        sleep(self.duration)
 
 
 class Device:
@@ -131,15 +141,17 @@ class Device:
         for raw_pattern in raw.get("patterns"):
             self.patterns.append(Pattern(self, raw_pattern))
 
+        self.ftp = self.connect()
         self.connect()
 
     def connect(self):
         # FTP.__init__() doesn't like a 'port' argument
-        self.ftp = FTP(host=self.hostname, user=self.user, passwd=self.password)
-        self.ftp.cwd(self.path)
+        ftp = FTP(host=self.hostname, user=self.user, passwd=self.password)
+        ftp.cwd(self.path)
         logging.debug("Device '%s' connected to host '%s'", self.name, self.hostname)
-        self.old_files = self.ftp.nlst()
+        self.old_files = ftp.nlst()
         logging.debug("Device '%s' has %i files", self.name, len(self.old_files))
+        return ftp
 
     def list_new_files(self):
         all_files = self.ftp.nlst()
@@ -152,7 +164,7 @@ class Device:
         self.old_files = all_files
         return new_files
 
-    def process(self, config):
+    def process(self):
         for filename in self.list_new_files():
             for pattern in self.patterns:
                 pattern.process(filename)
@@ -161,15 +173,15 @@ class Device:
 def monitor():
     while True:
         for device in context.devices:
-            device.process(context.config)
+            device.process()
         sleep(context.config.interval)
 
 
 actions = {
     "download": DownloadAction,
-    "mqtt": MqttAction
+    "mqtt": MqttAction,
+    "wait": WaitAction
 }
 
 context = Context()
 monitor()
-
