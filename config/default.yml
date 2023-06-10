@@ -1,0 +1,19 @@
+devices:
+#  - name: camera
+#    hostname: 192.168.1.55
+#    port: 21
+#    path: /mnt/sdcard/RecFiles
+#    file_pattern: ^Rec.*\.avi$
+
+interval: 10
+
+target_directory: target
+
+logging_level: WARNING
+
+#MQTT notification
+mqtt_host: 127.1
+mqtt_port: 1883
+mqtt_client_name: ftpsuck
+#mqtt_username:
+#mqtt_password:
