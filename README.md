@@ -4,6 +4,8 @@ This program monitors FTP servers (devices) and take actions when a new file is 
 
 Checkout the project, either edit ```config/default.yml``` or create a ```config/local.yml``` with the properties you need to override. Then run ```main.py```.
 
+FTPSuck will poll all the about devices every set interval (plus execution duration) and will react to new files. A new file is a file that exists now, and that did not exist the previous time the FTP was polled. 
+
 Please use, clone and improve.
 
 ## Installation
@@ -53,15 +55,15 @@ Patterns define what filenames trigger an action, and what are the actions:
 
 There are 3 types of actions:
 
-| Action property     | Usage                              | Note                                                                                                                                     |
-|---------------------|------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`            | `download`, `mqtt` or `wait`       | `download` is used to download the file from the FTP server into the local filesystem, `mqtt` is used to send a message on an MQTT topic |
-| `name`              | an optional name for this action   | Can be helpful in debugging situations                                                                                                   |
-| `download_path`     | where to download the file         | Used on `download` actions. `target` by default. **Variables can be used**.                                                              |
-| `download_filename` | the name of the downloaded file    | Used on `download` actions. `{filename}` by default. **Variables can be used**.                                                          |
-| `topic`             | which MQTT topic to send a message | Used on `mqtt` actions. **Variables can be used**.                                                                                       |
-| `payload`           | what payload to put in a message   | Used on `mqtt` actions. `{filename}` by default. **Variables can be used**.                                                              |
-| `duration`          | how many seconds to wait           | Used on `wait` actions. `1` by default                                                                                                   |
+| Action property     | Usage                              | Note                                                                                                                                                                                                          |
+|---------------------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`            | `download`, `mqtt` or `wait`       | `download` is used to download the file from the FTP server into the local filesystem, `mqtt` is used to send a message on an MQTT topic, `wait` can be useful in automation sequences between other actions. |
+| `name`              | an optional name for this action   | Can be helpful in debugging situations                                                                                                                                                                        |
+| `download_path`     | where to download the file         | Used on `download` actions. `target` by default. **Variables can be used**.                                                                                                                                   |
+| `download_filename` | the name of the downloaded file    | Used on `download` actions. `{filename}` by default. **Variables can be used**.                                                                                                                               |
+| `topic`             | which MQTT topic to send a message | Used on `mqtt` actions. **Variables can be used**.                                                                                                                                                            |
+| `payload`           | what payload to put in a message   | Used on `mqtt` actions. `{filename}` by default. **Variables can be used**.                                                                                                                                   |
+| `duration`          | how many seconds to wait           | Used on `wait` actions. `1` by default                                                                                                                                                                        |
 
 
 Where indicated, variables can be used in configuration properties. Use the `{variable_name}` syntax. The following variables are available:
@@ -124,17 +126,17 @@ I have an IP camera that exposes an FTP server. It records `.avi` files in the p
 detection, the camera starts recording in a file named `recording_0.avi` for about a minute. When the recording is
 finished, it renames the file into something like `Rec<auto_incr>_<timestamp>_A_1.avi`.
 
-This configuration is polling the FTP server every 5 seconds is reacting to 2 file patterns:
+This configuration is polling the FTP server every 5 seconds and is reacting to 2 file patterns:
 * Any file which name matches the regexp `^recording.*\.avi$` will trigger  the publishing of `1` in an MQTT topic named 
-`ftp/cam0/file`. This is telling me that motion was detected.
+`ftp/cam0/file`. This is telling me that motion was detected. Then it wais 1 second and sends `0` into the same topic.
 * Any file which name matches the regexp `^Rec.*\.avi$` (for example `Rec22_20230610153302_A_1.avi`) will trigger
   * a download of the file into the `target`
   * the publishing of the name of the file in an MQTT topic named `ftp/cam0/file`
 
+File `config/local.yml`:
 ```yaml
 mqtt_host: 192.168.1.2
 interval: 5
-logging_level: INFO
 
 devices:
   - name: cam0
@@ -144,6 +146,15 @@ devices:
     password: ''
     path: /mnt/sdcard/RecFiles
     patterns:
+      - file_pattern: ^recording.*\.avi$
+          - action: mqtt
+            topic: ftp/cam0/motion
+            payload: "1"
+          - action: wait
+            duration: 1
+          - action: mqtt
+            topic: ftp/cam0/motion
+            payload: "0"
       - file_pattern: ^Rec.*\.avi$
         actions:
           - action: download
@@ -152,9 +163,5 @@ devices:
           - action: mqtt
             topic: ftp/cam0/file
             payload: "{filename}"
-      - file_pattern: ^recording.*\.avi$
-        actions:
-          - action: mqtt
-            topic: ftp/cam0/motion
-            payload: "1"
+
 ```
