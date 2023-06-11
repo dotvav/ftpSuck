@@ -10,6 +10,15 @@ import yaml
 
 
 class Context:
+    """
+    This class keeps references to the configuration and the list of devices
+
+        Attributes
+        ----------
+        config : Config
+        devices : list of Device
+    """
+
     def __init__(self):
         self.mqtt_client = None
         self.devices = []
@@ -28,6 +37,10 @@ class Context:
 
 
 class Config:
+    """
+    This class holds the configuration
+    """
+
     interval = 10
     logging_level = "WARNING"
     mqtt_port = 1883
@@ -51,6 +64,7 @@ class Pattern:
     def __init__(self, device, raw):
         self.device = device
         self.file_pattern = raw.get("file_pattern")
+        self.name = raw.get("name")
         self.regexp = re.compile(self.file_pattern)
         self.actions = []
         for raw_action in raw.get("actions"):
@@ -59,7 +73,7 @@ class Pattern:
             if cls:
                 self.actions.append(cls(self, raw_action))
             else:
-                logging.warning("Ignoring unknown action %s", action)
+                logging.warning("Ignoring unknown action '%s' in pattern '%s'", action, self.name or self.file_pattern)
 
     def process(self, filename):
         if self.regexp.match(filename):
@@ -68,15 +82,21 @@ class Pattern:
 
 
 class Action:
+    """Base Action class, to be extended by other actions"""
+
     def __init__(self, pattern, raw):
         self.pattern = pattern
         self.action = raw.get("action")
+        self.name = raw.get("name")
 
     def process(self, filename):
+        logging.warning("Unsupported action %s", self.action)
         return
 
 
 class DownloadAction(Action):
+    """This action will download the file that triggers it"""
+
     download_filename = "{filename}"
 
     def __init__(self, pattern, raw):
@@ -85,12 +105,15 @@ class DownloadAction(Action):
         self.download_filename = raw.get("download_filename", self.download_filename)
 
     def process(self, filename):
-        logging.info("Download action for device '%s' file '%s'", self.pattern.device.name, filename)
-        with open(os.path.join(self.download_path.format(filename=filename), self.download_filename.format(filename=filename)), 'wb') as handle:
+        logging.info("Download action '%s' for device '%s' file '%s'", self.name, self.pattern.device.name, filename)
+        with open(os.path.join(self.download_path.format(filename=filename),
+                               self.download_filename.format(filename=filename)), 'wb') as handle:
             self.pattern.device.ftp.retrbinary(f"RETR {filename}", handle.write)
 
 
 class MqttAction(Action):
+    """This action will publish a message on MQTT when it is triggered"""
+
     payload = "{filename}"
 
     def __init__(self, pattern, raw):
@@ -98,7 +121,8 @@ class MqttAction(Action):
         self.topic = raw.get("topic")
         self.payload = raw.get("payload", self.payload)
 
-    def connect(self):
+    @staticmethod
+    def connect():
         context.mqtt_client = mqtt.Client(context.config.mqtt_client_name)
         if context.config.mqtt_username is not None:
             context.mqtt_client.username_pw_set(context.config.mqtt_username, context.config.mqtt_password)
@@ -106,23 +130,32 @@ class MqttAction(Action):
         context.mqtt_client.loop_start()
 
     def process(self, filename):
-        logging.info("MQTT action for device '%s' file '%s'", self.pattern.device.name, filename)
+        logging.info("MQTT action '%s' for device '%s' file '%s'", self.name, self.pattern.device.name, filename)
         if not context.mqtt_client:
             self.connect()
-        context.mqtt_client.publish(self.topic.format(filename=filename), self.payload.format(filename=filename), retain=False)
+        context.mqtt_client.publish(self.topic.format(filename=filename),
+                                    self.payload.format(filename=filename), retain=False)
 
 
 class WaitAction(Action):
+    """This action will wait a number of seconds when it is triggered"""
+
     def __init__(self, pattern, raw):
         super().__init__(pattern, raw)
         self.duration = raw.get("duration", 1)
 
     def process(self, filename):
-        logging.info("Wait action for device '%s' file '%s'", self.pattern.device.name, filename)
+        logging.info("Wait action '%s' for device '%s' duration '%s'",
+                     self.name, self.pattern.device.name, self.duration)
         sleep(self.duration)
 
 
 class Device:
+    """
+    A Device represents something that has an FTP server to be monitored.
+    Actions will be triggered when a new file is detected that matches a Pattern.
+    """
+
     hostname = "127.1"
     port = 21
     password = ""
@@ -158,7 +191,6 @@ class Device:
         return ftp
 
     def list_new_files(self, retries=2):
-        all_files = []
         try:
             all_files = self.ftp.nlst()
         except ftplib.all_errors:

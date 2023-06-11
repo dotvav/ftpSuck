@@ -1,6 +1,6 @@
 ## FTPSuck
 
-This program monitors FTP servers (devices) and take actions when a new file is detected. The currently supported actions are download and mqtt messaging.
+This program monitors FTP servers (devices) and take actions when a new file is detected. The currently supported actions are downloading, mqtt messaging, and waiting.
 
 Checkout the project, either edit ```config/default.yml``` or create a ```config/local.yml``` with the properties you need to override. Then run ```main.py```.
 
@@ -18,7 +18,7 @@ pip3 install -r requirements.txt
 ```
 
 ### Change the configuration
-You can either update the ```config/default.yml``` file or create a new file named ```config/local.yml```. The keys that are present in the local config will override the ones in the default config. If a key is absent from local config, FTPSuck will fallback to the value of the default config. I recommend keeping the default config as is and make all the changes in the local config file so that you don't lose them when the default file gets updated from git.
+You can either update the ```config/default.yml``` file or create a new file named ```config/local.yml```. The keys that are present in the local config will override the ones in the default config. If a key is absent from local config, FTPSuck will fall back to the value of the default config. I recommend keeping the default config as is and make all the changes in the local config file so that you don't lose them when the default file gets updated from git.
 
 | Property           | Usage                                                           | Note                                                                                                                            |
 |--------------------|-----------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
@@ -29,32 +29,34 @@ You can either update the ```config/default.yml``` file or create a new file nam
 | `mqtt_username`    | the MQTT broker username                                        | This is needed only if the MQTT broker requires an authenticated connection.                                                    |
 | `mqtt_password`    | the MQTT broker password                                        | This is needed only if the MQTT broker requires an authenticated connection.                                                    |
 | `interval`         | number of seconds to wait after a poll and before polling again | `10` by default                                                                                                                 |
-| `logging_level`    | pyhton log level                                                | `INFO by default`                                                                                                               |
+| `logging_level`    | python log level                                                | `INFO by default`                                                                                                               |
 
 Devices are defined as follows:
 
-| Device property | Usage                                         | Note                                        |
-|-----------------|-----------------------------------------------|---------------------------------------------|
-| `name`          | the name of this device (in logs or messages) | This is used in logs and MQTT messages      |
-| `hostname`      | the host name or ip address of the FTP server | `127.1` by default                          |
-| `port`          | the port of the FTP server                    | `21` by default                             |
-| `user`          | FTP username                                  | `root` by default                           |
-| `password`      | FTP password                                  | Unset by default                            |
-| `path`          | the remote path on the FTP server             | Unset by default                            |
-| `patterns`      | a list of patterns with actions               | You **must** set this. See the model below. |
+| Device property | Usage                                         | Note                                    |
+|-----------------|-----------------------------------------------|-----------------------------------------|
+| `name`          | the name of this device (in logs or messages) | This is used in logs and MQTT messages  |
+| `hostname`      | the host name or ip address of the FTP server | `127.1` by default                      |
+| `port`          | the port of the FTP server                    | `21` by default                         |
+| `user`          | FTP username                                  | `root` by default                       |
+| `password`      | FTP password                                  | Unset by default                        |
+| `path`          | the remote path on the FTP server             | Unset by default                        |
+| `patterns`      | a list of patterns with actions               | You must set this. See the model below. |
 
 Patterns define what filenames trigger an action, and what are the actions:
 
-| Pattern property | Usage               | Note                                                                                        |
-|------------------|---------------------|---------------------------------------------------------------------------------------------|
-| `file_pattern`   | a regular exception | When a file is detected and its name matches this regexp, the actions are executed in order |
-| `actions`        | a list of actions   | You **must** set this. See the model below.                                                 |
+| Pattern property | Usage                            | Note                                                                                        |
+|------------------|----------------------------------|---------------------------------------------------------------------------------------------|
+| `file_pattern`   | a regular exception              | When a file is detected and its name matches this regexp, the actions are executed in order |
+| `name`           | an optional name for this action | Can be helpful in debugging situations                                                      |
+| `actions`        | a list of actions                | You must set this. See the model below.                                                     |
 
 There are 3 types of actions:
 
 | Action property     | Usage                              | Note                                                                                                                                     |
 |---------------------|------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
 | `action`            | `download`, `mqtt` or `wait`       | `download` is used to download the file from the FTP server into the local filesystem, `mqtt` is used to send a message on an MQTT topic |
+| `name`              | an optional name for this action   | Can be helpful in debugging situations                                                                                                   |
 | `download_path`     | where to download the file         | Used on `download` actions. `target` by default. **Variables can be used**.                                                              |
 | `download_filename` | the name of the downloaded file    | Used on `download` actions. `{filename}` by default. **Variables can be used**.                                                          |
 | `topic`             | which MQTT topic to send a message | Used on `mqtt` actions. **Variables can be used**.                                                                                       |
@@ -101,7 +103,7 @@ sudo systemctl start ftpsuck.service
 sudo systemctl status ftpsuck.service
 ```
 
-## Pull the latest version from Github
+## Pull the latest version from GitHub
 Get the latest source
 ```shell script
 cd ftpsuck
@@ -125,7 +127,7 @@ finished, it renames the file into something like `Rec<auto_incr>_<timestamp>_A_
 This configuration is polling the FTP server every 5 seconds is reacting to 2 file patterns:
 * Any file which name matches the regexp `^recording.*\.avi$` will trigger  the publishing of `1` in an MQTT topic named 
 `ftp/cam0/file`. This is telling me that motion was detected.
-* Any file which name matches the regexp `^Rec.*\.avi$` (for example `Rec22_20230610153302_A_1.avi`) will triggert
+* Any file which name matches the regexp `^Rec.*\.avi$` (for example `Rec22_20230610153302_A_1.avi`) will trigger
   * a download of the file into the `target`
   * the publishing of the name of the file in an MQTT topic named `ftp/cam0/file`
 
