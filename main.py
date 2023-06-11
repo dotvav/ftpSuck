@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import ftplib
 from ftplib import FTP
 from time import sleep
 
@@ -142,19 +143,33 @@ class Device:
             self.patterns.append(Pattern(self, raw_pattern))
 
         self.ftp = self.connect()
-        self.connect()
 
     def connect(self):
-        # FTP.__init__() doesn't like a 'port' argument
-        ftp = FTP(host=self.hostname, user=self.user, passwd=self.password)
-        ftp.cwd(self.path)
-        logging.debug("Device '%s' connected to host '%s'", self.name, self.hostname)
-        self.old_files = ftp.nlst()
-        logging.debug("Device '%s' has %i files", self.name, len(self.old_files))
+        ftp = None
+        try:
+            # FTP.__init__() doesn't like a 'port' argument
+            ftp = FTP(host=self.hostname, user=self.user, passwd=self.password)
+            ftp.cwd(self.path)
+            logging.debug("Device '%s' connected to host '%s'", self.name, self.hostname)
+            self.old_files = ftp.nlst()
+            logging.debug("Device '%s' has %i files", self.name, len(self.old_files))
+        except ftplib.all_errors:
+            logging.exception("No FTP connection for device '%s', will retry later.", self.name)
         return ftp
 
-    def list_new_files(self):
-        all_files = self.ftp.nlst()
+    def list_new_files(self, retries=2):
+        all_files = []
+        try:
+            all_files = self.ftp.nlst()
+        except ftplib.all_errors:
+            if retries > 0:
+                logging.warning("No FTP connection for device '%s'", self.name)
+                self.ftp = self.connect()
+                return self.list_new_files(retries - 1)
+            else:
+                logging.exception("No FTP connection for device '%s'", self.name)
+                return []
+
         logging.debug("Device '%s' has %i files", self.name, len(all_files))
         new_files = []
         for filename in all_files:
