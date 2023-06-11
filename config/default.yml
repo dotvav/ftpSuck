@@ -12,7 +12,7 @@ target_directory: target
 logging_level: WARNING
 
 #MQTT notification
-mqtt_host: 127.1
+mqtt_host: 127.0.0.1
 mqtt_port: 1883
 mqtt_client_name: ftpsuck
 #mqtt_username:
